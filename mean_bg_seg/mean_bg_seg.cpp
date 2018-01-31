@@ -1,11 +1,12 @@
 #include "opencv2/opencv.hpp"
 #include <iostream>
 #include <sstream>
+#include "platformcam.h"
 
 #define CAM_CAP_FRAME(s, f) (s).grab();(s).retrieve(f);
 
 //For rgb camera only
-void cammeanbg(cv::VideoCapture& vs, size_t nmean, cv::Mat& bg)
+void cammeanbg(cam_t& vs, size_t nmean, cv::Mat& bg)
 {
   //Frame buffer
   cv::Mat frame;
@@ -39,7 +40,6 @@ void cammeanbg(cv::VideoCapture& vs, size_t nmean, cv::Mat& bg)
     }
 }
 
-
 int main(int argc, char** argv)
 {
   if(argc != 2)
@@ -56,14 +56,23 @@ int main(int argc, char** argv)
       std::cerr << "Invalid frame number" << std::endl;
       return 0;
     }
-  
-  cv::VideoCapture s_vid;
-  if(!s_vid.open(0))
+
+#ifdef RPI_CAM
+  raspicam::RaspiCam_Cv s_vid;
+#else
+  cam_t s_vid;
+#endif
+
+  //Set resolution to 480p
+  s_vid.set(CV_CAP_PROP_FRAME_WIDTH, 640);
+  s_vid.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
+
+  if(!OPEN_CAM(s_vid))
     {
-      std::cerr << "Unable to opencv camera" << std::endl;
+      std::cerr << "Unable to open camera" << std::endl;
       return 0;
     }
-
+    
   cv::Mat bg;
   cammeanbg(s_vid, total_frame_num, bg);
   std::cout << bg.at<cv::Vec3b>(0, 0) << std::endl;
