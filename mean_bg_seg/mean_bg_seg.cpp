@@ -1,12 +1,11 @@
 #include "opencv2/opencv.hpp"
 #include <iostream>
 #include <sstream>
+#include <type_traits>
 #include "platformcam.h"
 
-#define CAM_CAP_FRAME(s, f) (s).grab();(s).retrieve(f);
-
 //For rgb camera only
-void cammeanbg(cam_t& vs, size_t nmean, cv::Mat& bg)
+void camMeanBg(cam_t& vs, size_t nmean, cv::Mat& bg)
 {
   //Frame buffer
   cv::Mat frame;
@@ -15,30 +14,18 @@ void cammeanbg(cam_t& vs, size_t nmean, cv::Mat& bg)
   CAM_CAP_FRAME(vs, frame);
   cv::Mat accu_mat(frame.size(), CV_32FC3, cv::Scalar_<float>(0, 0, 0));
 
-  int row, col;
   for(size_t frame_count = 0; frame_count < nmean; ++frame_count)
     {
       CAM_CAP_FRAME(vs, frame);
-      for(row = 0; row < frame.rows; ++row)
-	for(col = 0; col < frame.cols; ++col)
-	  accu_mat.at<cv::Vec3f>(row, col) += frame.at<cv::Vec3b>(row, col);
+      //Accumulate frames
+      cv::add(frame, accu_mat, accu_mat, cv::noArray(), CV_32F);
     }
-
-  std::cout << accu_mat.at<cv::Vec3f>(0, 0) << std::endl;
-  //Mean
-  bg = cv::Mat(frame.size(), CV_8UC3, cv::Scalar_<uchar>::all(0));
-  cv::MatIterator_<cv::Vec3f> accu_it;
-  cv::MatIterator_<cv::Vec3b> bg_it;
-  for(accu_it = accu_mat.begin<cv::Vec3f>(), bg_it = bg.begin<cv::Vec3b>();
-      accu_it != accu_mat.end<cv::Vec3f>(), bg_it != bg.end<cv::Vec3b>();
-      ++accu_it, ++bg_it)
-    {
-       (*bg_it)[0] = uchar((*accu_it)[0] / nmean);
-       (*bg_it)[1] = uchar((*accu_it)[1] / nmean);
-       (*bg_it)[2] = uchar((*accu_it)[2] / nmean);
-      //*accu_it = cv::Vec3f((*accu_it)[0] / nmean, (*accu_it)[1] / nmean, (*accu_it)[2] / nmean);
-    }
+  
+  //Mean, use divide instead of hand-written element-wise division to be more efficient
+  cv::Mat divisor_mat(accu_mat.size(), accu_mat.type(), cv::Scalar_<float>::all(nmean));
+  cv::divide(accu_mat, divisor_mat, bg, 1, CV_8U);
 }
+
 
 int main(int argc, char** argv)
 {
@@ -57,11 +44,7 @@ int main(int argc, char** argv)
       return 0;
     }
 
-#ifdef RPI_CAM
-  raspicam::RaspiCam_Cv s_vid;
-#else
   cam_t s_vid;
-#endif
 
   //Set resolution to 480p
   s_vid.set(CV_CAP_PROP_FRAME_WIDTH, 640);
@@ -74,9 +57,32 @@ int main(int argc, char** argv)
     }
     
   cv::Mat bg;
-  cammeanbg(s_vid, total_frame_num, bg);
-  std::cout << bg.at<cv::Vec3b>(0, 0) << std::endl;
+  std::cout << "Callibrating background..." << std::endl;
+  camMeanBg(s_vid, total_frame_num, bg);
+  std::cout << "Done!" << std::endl;
   imshow("Averaged backgroud", bg);
+
+  cv::Mat frame;
+  cv::Mat diff;
+  for(;;)
+    {
+      CAM_CAP_FRAME(s_vid, frame);
+      diff = cv::abs(frame - bg);
+      
+      //Thresholding?
+      for(auto diff_it = diff.begin<cv::Vec3b>();
+	  diff_it != diff.end<cv::Vec3b>();
+	  ++diff_it)
+	*diff_it = ((*diff_it)[0] + (*diff_it)[1] + (*diff_it)[2]) > 60 ?
+	  cv::Vec<uchar, 3>::all(255) : cv::Vec<uchar, 3>::all(0);
+      
+      imshow("Segmentation result", diff);
+
+      if(cv::waitKey(1) == 'q')
+	break;
+    }
+  
+
   cv::waitKey(0);
   
 }

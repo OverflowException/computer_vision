@@ -11,4 +11,6 @@
   typedef cv::VideoCapture cam_t;
 #endif
 
+#define CAM_CAP_FRAME(s, f) (s).grab();(s).retrieve(f);
+
 #endif
