@@ -81,8 +81,4 @@ int main(int argc, char** argv)
       if(cv::waitKey(1) == 'q')
 	break;
     }
-  
-
-  cv::waitKey(0);
-  
 }
