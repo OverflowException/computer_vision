@@ -1,7 +1,8 @@
 #To build executable for raspberry pi, run
 #	make RPI=1
 
-TARGET = mean_bg_seg
+TARGET_1 = bin/static_mean_seg
+TARGET_2 = bin/dynamic_mean_seg
 
 CXX = g++
 INC = `pkg-config --cflags opencv` #and other include paths -I
@@ -23,16 +24,22 @@ LINK = $(CXX) $(LFLAGS) $(LIB) $^ -o $@
 
 
 .PHONY: all
-all: $(TARGET) #and other targets
+all: $(TARGET_1) $(TARGET_2)#and other targets
 
-$(TARGET): mean_bg_seg.o
+$(TARGET_1): build/static_mean_seg.o
 	$(LINK)
-mean_bg_seg.o: mean_bg_seg.cpp
+build/static_mean_seg.o: src/static_mean_seg.cpp
 	$(COMPILE)
 
-#$(shell mkdir -p bin)
-#$(shell mkdir -p build)
+$(TARGET_2): build/dynamic_mean_seg.o
+	$(LINK)
+build/dynamic_mean_seg.o: src/dynamic_mean_seg.cpp
+	$(COMPILE)
+
+
+$(shell mkdir -p bin)
+$(shell mkdir -p build)
 
 clean:
-	rm -frv *.o
-#	rm -frv ./build/*.o
+#	rm -frv *.o
+	rm -frv ./build/*.o

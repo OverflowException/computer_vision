@@ -55,7 +55,8 @@ int main(int argc, char** argv)
       std::cerr << "Unable to open camera" << std::endl;
       return 0;
     }
-    
+
+  //Calculating the mean of initial 30 frames. Hence its called static mean segmentation.
   cv::Mat bg;
   std::cout << "Callibrating background..." << std::endl;
   camMeanBg(s_vid, total_frame_num, bg);

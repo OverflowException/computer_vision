@@ -11,6 +11,7 @@
   typedef cv::VideoCapture cam_t;
 #endif
 
-#define CAM_CAP_FRAME(s, f) (s).grab();(s).retrieve(f);
+#define CAM_CAP_FRAME(s, f) {(s).grab();(s).retrieve(f);}
+#define CAM_CAP_FRAME_GRAY(s, f) {CAM_CAP_FRAME(s, f); cv::cvtColor(f, f, cv::COLOR_RGB2GRAY);};
 
 #endif
