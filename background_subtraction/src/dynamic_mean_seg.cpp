@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include <queue>
+#include <vector>
 #include "platformcam.h"
 
 
@@ -40,40 +41,41 @@ int main(int argc, char** argv)
   cv::Mat accu_mat(temp_frame->size(), CV_32FC1, cv::Scalar_<float>::all(0));
   delete temp_frame;
 
-  
-  std::queue<cv::Mat> frame_queue;
-  //Initialize deque
-  std::cout << "Filling queue with initial "  << total_frame_num << " frame!" <<std::endl;
-  for(int frame_count = 0; frame_count < total_frame_num; ++frame_count)
+  //The number of frames is fixed, so no need to use a queue. Use a fixed-size container.
+  std::vector<cv::Mat> frame_vec(total_frame_num, cv::Mat(accu_mat.size(), CV_8UC3, cv::Scalar_<uchar>::all(0)));
+  decltype(frame_vec)::iterator frame_it = frame_vec.begin();
+  //Initialize vector
+  std::cout << "Filling vector with initial "  << total_frame_num << " frame..." <<std::endl;
+  for(frame_it = frame_vec.begin(); frame_it != frame_vec.end(); ++frame_it)
     {
-      frame_queue.push(cv::Mat());
-      CAM_CAP_FRAME_GRAY(s_vid, frame_queue.back());
-      cv::add(frame_queue.back(), accu_mat, accu_mat, cv::noArray(), CV_32F);
+      CAM_CAP_FRAME_GRAY(s_vid, *frame_it);
+      cv::add(accu_mat, *frame_it, accu_mat, cv::noArray(), CV_32F);
     }
   std::cout << "Done!" << std::endl;
   
   cv::Mat diff, bg;
   cv::Mat divisor_mat = cv::Mat(accu_mat.size(), accu_mat.type(), cv::Scalar_<float>::all(total_frame_num));
+
   //Dynamic mean
-  for(;;)
+  for(frame_it = frame_vec.begin();; ++frame_it)
     {
-      //Dynamic mean
-      frame_queue.push(cv::Mat());
-      CAM_CAP_FRAME_GRAY(s_vid, frame_queue.back());
-      cv::add(accu_mat, frame_queue.back(), accu_mat, cv::noArray(), CV_32F);
-      cv::subtract(accu_mat, frame_queue.front(), accu_mat, cv::noArray(), CV_32F);
-      frame_queue.pop();
+      if(frame_it == frame_vec.end())
+	frame_it = frame_vec.begin();
+      
+      //Dynamic Mean
+      cv::subtract(accu_mat, *frame_it, accu_mat, cv::noArray(), CV_32F);
+      CAM_CAP_FRAME_GRAY(s_vid, *frame_it);
+      cv::add(accu_mat, *frame_it, accu_mat, cv::noArray(), CV_32F);
       cv::divide(accu_mat, divisor_mat, bg, 1, CV_8U);
 
       //Background subtraction. Binary threshold can be negotiated
-      cv::subtract(frame_queue.back(), bg, diff, cv::noArray(), CV_32F);
-      diff = cv::abs(diff);
+      cv::absdiff(*frame_it, bg, diff);
       cv::threshold(diff, diff, 15, 255, cv::THRESH_BINARY);
 
       //Show result
       imshow("Background", bg);
       imshow("Segmentation result", diff);
-
+      
       if(cv::waitKey(1) == 'q')
 	break;
     }
