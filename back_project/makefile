@@ -1,7 +1,8 @@
 #To build executable for raspberry pi, run
 #	make RPI=1
 
-TARGET = bin/back_project_with_template
+TARGET_1 = bin/back_project_with_template
+TARGET_2 = bin/back_project_cam_sample
 
 CXX = g++
 INC = `pkg-config --cflags opencv` #and other include paths -I
@@ -23,11 +24,16 @@ LINK = $(CXX) $(LFLAGS) $(LIB) $^ -o $@
 
 
 .PHONY: all
-all: $(TARGET) #and other targets
+all: $(TARGET_1) $(TARGET_2) #and other targets
 
-$(TARGET): build/back_project_with_template.o
+$(TARGET_1): build/back_project_with_template.o
 	$(LINK)
 build/back_project_with_template.o: src/back_project_with_template.cpp
+	$(COMPILE)
+
+$(TARGET_2): build/back_project_cam_sample.o
+	$(LINK)
+build/back_project_cam_sample.o: src/back_project_cam_sample.cpp
 	$(COMPILE)
 
 #[other targets]

@@ -3,7 +3,7 @@
 #include <iostream>
 
 
-//Only capable of painting 2d histogram map
+//Only capable of mapping 2d histogram map
 void histMap(const cv::Mat& hist, cv::Mat& map, const cv::Size& eleSize)
 {
   cv::Mat hist_8u;
@@ -11,7 +11,7 @@ void histMap(const cv::Mat& hist, cv::Mat& map, const cv::Size& eleSize)
   cv::Size hist_size = hist_8u.size();
   map = cv::Mat(hist_size.height * eleSize.height,
 		hist_size.width * eleSize.width,
-		hist.type());
+		hist_8u.type());
   
   int dim1_index, dim2_index;
   //Traverse histogram element
@@ -22,10 +22,11 @@ void histMap(const cv::Mat& hist, cv::Mat& map, const cv::Size& eleSize)
 	left_up = {dim1_index * eleSize.width, dim2_index * eleSize.height};
 	right_down = {left_up.x + eleSize.width - 1, left_up.y + eleSize.height - 1};
 	cv::rectangle(map, left_up, right_down,
-		  cv::Scalar::all(hist.at<uchar>(dim1_index, dim2_index)),
-		  cv::FILLED);
+		      cv::Scalar_<uchar>::all(hist_8u.at<uchar>(dim2_index, dim1_index)),
+		      cv::FILLED);
       }
 }
+
 
 void backProject(const cv::Mat& img, const cv::Mat& hist, cv::Mat& backproj)
 {
@@ -35,8 +36,8 @@ void backProject(const cv::Mat& img, const cv::Mat& hist, cv::Mat& backproj)
     for(col_index = 0; col_index < img.cols; ++col_index)
       {
 	backproj.at<uchar>(row_index, col_index) =
-	  hist.at<uchar>( img.at<cv::Vec3b>(row_index, col_index)[0] / 3,
-			  img.at<cv::Vec3b>(row_index, col_index)[1] / 4);
+	  hist.at<uchar>( img.at<cv::Vec3b>(row_index, col_index)[0] / 6,
+			  img.at<cv::Vec3b>(row_index, col_index)[1] / 8);
       }
 }
 
@@ -79,7 +80,7 @@ int main(int argc, char**argv)
   
   //60 bins for hue, 3 hue levels per bin
   //64 bins for saturation, 4 saturation levels per bin 
-  int hist_size[] = {60, 64};
+  int hist_size[] = {30, 32};
   
   //Cover entire hue and saturation spectrum
   float hranges[] = {0, 180};
@@ -98,13 +99,16 @@ int main(int argc, char**argv)
 
   //Normalize histogram
   cv::normalize(templ_hist, templ_hist, 255, 0, cv::NORM_MINMAX, CV_8U);
+  std::cout << templ_hist << std::endl;
   
   //obtain hist map
   cv::Mat hist_map;
-  histMap(templ_hist, hist_map, cv::Size(5, 5));
+  histMap(templ_hist, hist_map, cv::Size(10, 10));
+  std::cout << templ_hist.size() << " " << hist_map.size() << std::endl;
   imshow("H-S histogram map", hist_map);
   cv::waitKey(0);
-
+  cv::destroyWindow("H-S histogram map");
+  
   //open camera to read real time image
   cam_t s_vid;
   s_vid.set(CV_CAP_PROP_FRAME_WIDTH, 640);
