@@ -28,7 +28,7 @@ int main(int argc, char** argv)
   calcHist( &hsv, 1, channels, Mat(), // do not use mask
 	    hist, 2, histSize, ranges,
 	    true, // the histogram is uniform
-	    false );
+ 	    false );
   double maxVal=0;
   minMaxLoc(hist, 0, &maxVal, 0, 0);
   int scale = 10;
