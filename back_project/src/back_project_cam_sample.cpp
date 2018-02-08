@@ -36,8 +36,8 @@ void backProject(const cv::Mat& img, const cv::Mat& hist, cv::Mat& backproj)
     for(col_index = 0; col_index < img.cols; ++col_index)
       {
 	backproj.at<uchar>(row_index, col_index) =
-	  hist.at<uchar>( img.at<cv::Vec3b>(row_index, col_index)[0] / 3,
-			  img.at<cv::Vec3b>(row_index, col_index)[1] / 4);
+	  hist.at<uchar>( img.at<cv::Vec3b>(row_index, col_index)[0] / 6,
+			  img.at<cv::Vec3b>(row_index, col_index)[1] / 8);
       }
 }
 
@@ -84,9 +84,9 @@ int main(int argc, char**argv)
   //sample roi per row, per col
   cv::Size sz_arr_num(3, 3);
   //ROI gap
-  cv::Size sz_gap(frame_rgb.cols / 10, frame_rgb.rows / 10);
+  cv::Size sz_gap(frame_rgb.cols / 30, frame_rgb.rows / 20);
   //size of a simgle ROI
-  cv::Size sz_roi(10, 10);
+  cv::Size sz_roi(12, 12);
   //sample roi starting point. (left up)
   cv::Point sample_roi_beg(int(frame_rgb.cols * 0.4), int(frame_rgb.rows * 0.4));
   //These 4 parameter will determine sample roi array.
@@ -102,75 +102,90 @@ int main(int argc, char**argv)
   for(row_index = 0; row_index < sz_arr_num.height; ++row_index)
     {
       for(col_index = 0; col_index < sz_arr_num.width; ++col_index)
-	arr_sample_roi[row_index * 3 + col_index] =
-	  cv::Rect(cv::Point(sample_roi_beg.x + row_index * sz_gap.width,
-		     sample_roi_beg.y + col_index * sz_gap.height),
+	arr_sample_roi[row_index * sz_arr_num.width + col_index] =
+	  cv::Rect(cv::Point(sample_roi_beg.x + col_index * sz_gap.width,
+		     sample_roi_beg.y + row_index * sz_gap.height),
 	   sz_roi);
     }
 
-  //Draw on image
+  //Draw on image, wait for confirmation
   for(;;)
     {
       CAM_CAP_FRAME(s_vid, frame_rgb);
       for(cv::Rect& roi_ele : arr_sample_roi)
 	cv::rectangle(frame_rgb, roi_ele, cv::Scalar_<uchar>(0, 255, 0), 2, cv::FILLED);
 
-      imshow("Image with sample roi", frame_rgb);
+      imshow("Sampling. Press C to confirm", frame_rgb);
 
       if(cv::waitKey(1) == 'c')
 	break;
     }
 
-  cv::destroyWindow("Image with sample roi");
+  cv::destroyWindow("Sampling. Press C to confirm");
 
   //capture the last frame
   CAM_CAP_FRAME(s_vid, frame_rgb);
 
   std::vector<cv::Mat> arr_sample_img;
+  cv::Mat whole_sample(cv::Size(sz_roi.width * sz_arr_num.width, sz_roi.height * sz_arr_num.height),
+  		       frame_rgb.type());
   arr_sample_img.resize(arr_sample_roi.size());
   for(size_t index = 0; index < arr_sample_roi.size(); ++index)
     {
       //Constuct all the subimages
       arr_sample_img[index] = cv::Mat(frame_rgb, arr_sample_roi[index]);
       //Convert all subimages to hsv. Coresponding position in frame_rgb image is changed.
-      cv::cvtColor(arr_sample_img[index], arr_sample_img[index], cv::COLOR_BGR2HSV);
+      //cv::cvtColor(arr_sample_img[index], arr_sample_img[index], cv::COLOR_BGR2HSV);
+      //Copy to one big image
+      arr_sample_img[index].copyTo(whole_sample(cv::Rect((index % sz_arr_num.width) * sz_roi.width,  //left-up x
+							 (index / sz_arr_num.width) * sz_roi.height, //left-up y
+							 arr_sample_img[index].cols,
+							 arr_sample_img[index].rows)));
     }
+  cv::cvtColor(whole_sample, whole_sample, cv::COLOR_BGR2HSV);
 
+  
   //60 bins for hue, 3 hue levels per bin
   //64 bins for saturation, 4 saturation levels per bin 
-  int hist_size[] = {60, 64};
+  int hist_size[] = {30, 32};
   
   //Cover entire hue and saturation spectrum
   float hranges[] = {0, 180};
   float sranges[] = {0, 256};
   const float* ranges[] = {hranges, sranges};
 
-  //Only calculate hue and saturation channel. Ignore value channel.
-  std::vector<int> channels(2 * arr_sample_img.size());
-  for(size_t img_index = 0; img_index < arr_sample_img.size(); ++img_index)
-    for(size_t channel_index = 0; channel_index < 2; ++channel_index)
-      channels[img_index * 2 + channel_index] = img_index * 3 + channel_index;    
-
-
+  // //Only calculate hue and saturation channel. Ignore value channel.
+  // std::vector<int> channels(2 * arr_sample_img.size());
+  // for(size_t img_index = 0; img_index < arr_sample_img.size(); ++img_index)
+  //   for(size_t channel_index = 0; channel_index < 2; ++channel_index)
+  //     channels[img_index * 2 + channel_index] = img_index * 3 + channel_index;
+  int channels[] = {0, 1};
+  
   cv::Mat sample_hist;
   //Calculate histogram
-  cv::calcHist(arr_sample_img.data(), arr_sample_img.size(), channels.data(), cv::Mat(),
+  cv::calcHist(&whole_sample, 1, channels, cv::Mat(),
   	       sample_hist, 2, hist_size, ranges,
   	       true,
   	       false);
 
   //Normalize histogram
   cv::normalize(sample_hist, sample_hist, 255, 0, cv::NORM_MINMAX, CV_8U);
-  std::cout << sample_hist << std::endl;
 
   //obtain hist map
   cv::Mat hist_map;
   histMap(sample_hist, hist_map, cv::Size(10, 10));
-  std::cout << sample_hist.size() << " " << hist_map.size() << std::endl;
   imshow("H-S histogram map", hist_map);
   cv::waitKey(0);
   cv::destroyWindow("H-S histogram map");
+
+  std::vector<cv::Point> nonzero_pos_i;
+  std::vector<cv::Point2f> nonzero_pos_f;
+  decltype(nonzero_pos_i)::iterator it_pos_i;
+  decltype(nonzero_pos_f)::iterator it_pos_f;
   
+  std::vector<int> points_labels;
+  cv::Mat cluster_centers_coords;
+  std::vector<cv::Point> cluster_centers;
   for(;;)
     {
       CAM_CAP_FRAME(s_vid, frame_rgb);
@@ -181,81 +196,49 @@ int main(int argc, char**argv)
       //  			  templ_hist, backproj,
       //  			  ranges);
       backProject(frame_hsv, sample_hist, backproj);
-      //hand_center = brightCenter(backproj, 128);
-      //cv::circle(frame_rgb, hand_center, 20, cv::Scalar_<uchar>(0, 255, 0));
+      cv::imshow("Original back project", backproj);
+      //cv::medianBlur(backproj, backproj, 5);
+      //cv::findContours(backproj, );
+      cv::threshold(backproj, backproj, 0, 255, cv::THRESH_OTSU);
+      cv::imshow("Thresholded", backproj);
 
-      //Noise filter?
-      //cv::morphologyEx(sample_hist, sample_hist, cv::MORPH_CLOSE,
-      //cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
       
-      cv::imshow("Back project", backproj);
-      //cv::imshow("Origin", frame_rgb);
+      //Find clusters
+      cv::findNonZero(backproj, nonzero_pos_i);
+      nonzero_pos_f.resize(nonzero_pos_i.size());
+      for(it_pos_i = nonzero_pos_i.begin(), it_pos_f = nonzero_pos_f.begin();
+	  it_pos_i != nonzero_pos_i.end();
+	  ++it_pos_i, ++it_pos_f)
+	*it_pos_f = cv::Point2f(float(it_pos_i->x), float(it_pos_i->y));
+	
+      //std::cout << "here_1" << std::endl;
+      cv::kmeans(nonzero_pos_f, 3, points_labels,
+		 cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 10, 0.1),
+		 3, cv::KMEANS_PP_CENTERS, cluster_centers_coords);
 
+      cluster_centers.resize(cluster_centers_coords.rows);
+      for(size_t center_index = 0; center_index < cluster_centers.size(); ++center_index)
+	cluster_centers[center_index] =
+	  cv::Point(int(cluster_centers_coords.at<float>(center_index, 0)),
+		    int(cluster_centers_coords.at<float>(center_index, 1)));
+
+      for(cv::Point center : cluster_centers)
+	cv::circle(frame_rgb, center, 10, cv::Scalar_<uchar>(255, 255, 0), 3, cv::FILLED);
+
+      
+      cv::imshow("Cluster centers", frame_rgb);
+      // //morphology open. Denoising
+      // cv::morphologyEx(backproj, backproj, cv::MORPH_OPEN,
+      // 		       cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+      // //morphology dilate. Denoising
+      // cv::morphologyEx(backproj, backproj, cv::MORPH_DILATE,
+      // 		       cv::getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9)));
+      
       if(cv::waitKey(1) == 'q')
   	break;
     }
-  s_vid.release();  
+  s_vid.release();
 
   
-
   return 0;
-
-  
-  // //convert template from RGB image to HSV image
-  // //hue: 0 - 179
-  // //saturation: 0 to 255
-  // cv::cvtColor(templ, templ, cv::COLOR_BGR2HSV);
-  
-  // //60 bins for hue, 3 hue levels per bin
-  // //64 bins for saturation, 4 saturation levels per bin 
-  // int hist_size[] = {30, 32};
-  
-  // //Cover entire hue and saturation spectrum
-  // float hranges[] = {0, 180};
-  // float sranges[] = {0, 256};
-  // const float* ranges[] = {hranges, sranges};
-
-  // //Only calculate hue and saturation channel. Ignore value channel.
-  // int channels[] = {0, 1};
-
-  // cv::Mat templ_hist;
-  // //Calculate histogram
-  // cv::calcHist(&templ, 1, channels, cv::Mat(),
-  // 	       templ_hist, 2, hist_size, ranges,
-  // 	       true,
-  // 	       false);
-
-  // //Normalize histogram
-  // cv::normalize(templ_hist, templ_hist, 255, 0, cv::NORM_MINMAX, CV_8U);
-  // std::cout << templ_hist << std::endl;
-  
-  // //obtain hist map
-  // cv::Mat hist_map;
-  // histMap(templ_hist, hist_map, cv::Size(10, 10));
-  // std::cout << templ_hist.size() << " " << hist_map.size() << std::endl;
-  // imshow("H-S histogram map", hist_map);
-  // cv::waitKey(0);
-
-  
-  // cv::Point hand_center;
-  // for(;;)
-  //   {
-  //     CAM_CAP_FRAME(s_vid, frame_rgb);
-  //     cv::cvtColor(frame_rgb, frame_hsv, cv::COLOR_BGR2HSV);
-      
-  //     //This will cause bus error on raspberry pi
-  //     // cv::calcBackProject(&frame_hsv, 1, channels,
-  //     //  			  templ_hist, backproj,
-  //     //  			  ranges);
-  //     backProject(frame_hsv, templ_hist, backproj);
-  //     hand_center = brightCenter(backproj, 128);
-  //     cv::circle(frame_rgb, hand_center, 20, cv::Scalar_<uchar>(0, 255, 0));
-  //     cv::imshow("Back project", backproj);
-  //     cv::imshow("Origin", frame_rgb);
-
-  //     if(cv::waitKey(1) == 'q')
-  // 	break;
-  //   }
-  // s_vid.release();
-  // return 0;
 }
