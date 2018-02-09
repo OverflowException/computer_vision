@@ -2,7 +2,12 @@
 #include "platformcam.h"
 #include <iostream>
 #include <vector>
-#include <utility>
+#include <array>
+#include <string>
+#include <algorithm>
+#include <cmath>
+
+
 
 //Only capable of mapping 2d histogram map
 void histMap(const cv::Mat& hist, cv::Mat& map, const cv::Size& eleSize)
@@ -41,29 +46,59 @@ void backProject(const cv::Mat& img, const cv::Mat& hist, cv::Mat& backproj)
       }
 }
 
-cv::Point brightCenter(const cv::Mat& backproj, int threshold)
+template<typename T>
+inline double distance(const T& p1, const T& p2)
 {
-  int x_accu = 0;
-  int y_accu = 0;
-  int pix_count = 0;
-  
-  int row_index, col_index;
-  for(row_index = 0; row_index < backproj.rows; ++row_index)
-    for(col_index = 0; col_index < backproj.cols; ++col_index)
-      if(backproj.at<uchar>(row_index, col_index) > threshold)
-	{
-	  x_accu += col_index;
-	  y_accu += row_index;
-	  ++pix_count;
-	}
-
-  if(pix_count == 0)
-    return cv::Point(0, 0);
-      
-  return cv::Point(x_accu / pix_count, y_accu / pix_count);
+  return sqrt(pow(double(p1.x - p2.x), 2) + pow(double(p1.y - p2.y), 2));
 }
 
+//both up: 0, 0
+//both down: -1, 1
+//left up, right down: 0, 1
+//left down, right up: -1, 0
+std::array<cv::Point2f, 4> gesture_refpoints =
+  {
+    cv::Point2f(0, 0),
+    cv::Point2f(-1, 1),
+    cv::Point2f(0, 1),
+    cv::Point2f(-1, 0)
+  };
 
+//Only support 4 gestures
+int determineGesture(std::vector<cv::Point>& gpoints)
+{
+  if(gpoints.size() != 3)
+    return -1;
+  
+  //Sort. Ensure gesture points are in a let-to-right order
+  std::sort(gpoints.begin(), gpoints.end(), [](cv::Point& a, cv::Point& b)
+	    {return  a.x < b.x;});
+
+
+  //left, right means the left, right in the image
+  //Be noted that left, right in image is mirror of actual left, right
+  int x_diff_l = gpoints[1].x - gpoints[0].x;
+  int x_diff_r = gpoints[1].x - gpoints[2].x;
+  
+  if(x_diff_r == 0 || x_diff_l == 0)
+    return -2;
+
+  //Current gesture is represented by this cv::Point. left slope as x, right slope as y
+  cv::Point2f slope_point(float(gpoints[1].y - gpoints[0].y) / x_diff_l,
+		     float(gpoints[1].y - gpoints[2].y) / x_diff_r);
+
+  //Determine which gesture reference can describe current gensture most accurately
+  size_t min_index, refpoint_index = 0;
+  double curr_dist, min_dist = std::numeric_limits<double>::max();
+  for(refpoint_index = 0; refpoint_index < gesture_refpoints.size(); ++refpoint_index)
+    if((curr_dist = distance(slope_point, gesture_refpoints[refpoint_index])) < min_dist)
+      {
+	min_dist = curr_dist;
+	min_index = refpoint_index;
+      }
+
+  return int(min_index);
+}
 int main(int argc, char**argv)
 {
   //open camera to read real time image
@@ -186,6 +221,14 @@ int main(int argc, char**argv)
   std::vector<int> points_labels;
   cv::Mat cluster_centers_coords;
   std::vector<cv::Point> cluster_centers;
+  int gesture = -1, prev_gesture = -1;
+  std::vector<std::string> gesture_name =
+    {
+      "UP UP",
+      "DOWN DOWN",
+      "UP DOWN",
+      "DOWN UP"
+    };
   for(;;)
     {
       CAM_CAP_FRAME(s_vid, frame_rgb);
@@ -225,15 +268,33 @@ int main(int argc, char**argv)
       for(cv::Point center : cluster_centers)
 	cv::circle(frame_rgb, center, 10, cv::Scalar_<uchar>(255, 255, 0), 3, cv::FILLED);
 
-      
-      cv::imshow("Cluster centers", frame_rgb);
+	
       // //morphology open. Denoising
       // cv::morphologyEx(backproj, backproj, cv::MORPH_OPEN,
       // 		       cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
       // //morphology dilate. Denoising
       // cv::morphologyEx(backproj, backproj, cv::MORPH_DILATE,
       // 		       cv::getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9)));
-      
+
+
+
+      //Valid gesture
+      if((gesture = determineGesture(cluster_centers)) < 0)
+	{
+	  std::cout << "Invalid gesture! Error code = " << gesture << std::endl;
+	  continue;
+	}
+
+      else if(gesture != prev_gesture)
+	{
+	  std::cout << "Gesture code = " << gesture << std::endl;
+	  prev_gesture = gesture;
+	}
+
+      cv::putText(frame_rgb, gesture_name[gesture], cv::Point(100, 100),
+		  cv::FONT_HERSHEY_SIMPLEX, 3, cv::Scalar_<uchar>(0, 255, 0),
+		  5, cv::FILLED);
+      cv::imshow("Cluster centers", frame_rgb);
       if(cv::waitKey(1) == 'q')
   	break;
     }
