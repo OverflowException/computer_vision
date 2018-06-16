@@ -34,3 +34,6 @@
 #Pictures
 *.png
 *.jpg
+
+*/bin/*
+*/build/*
