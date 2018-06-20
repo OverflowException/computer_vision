@@ -25,9 +25,7 @@ int main( int argc, char** argv )
     return 0;
   }
 
-  //-- Step 1: Detect the keypoints using SIFT Detector
   int minHessian = 400;
-
   Ptr<SIFT> detector = SIFT::create(minHessian);
 
   std::vector<KeyPoint> keypoints;

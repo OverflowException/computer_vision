@@ -1,7 +1,8 @@
 #To build executable for raspberry pi, run
 #	make RPI=1
 
-TARGET = sift_match
+TARGET1 = sift_match
+TARGET2 = surf_match
 
 CXX = g++
 INC = `pkg-config --cflags opencv` #and other include paths -I
@@ -23,12 +24,18 @@ LINK = $(CXX) $(LFLAGS) $(LIB) $^ -o $@
 
 
 .PHONY: all
-all: $(TARGET) #and other targets
+all: $(TARGET1) $(TARGET2) #and other targets
 
-$(TARGET): sift_match.o
+$(TARGET1): sift_match.o
 	$(LINK)
+$(TARGET2): surf_match.o
+	$(LINK)
+
 sift_match.o: sift_match.cpp
 	$(COMPILE)
+surf_match.o: surf_match.cpp
+	$(COMPILE)
+
 
 clean:
 	rm -frv *.o
