@@ -71,7 +71,7 @@ static Mat drawGoodMatches(
 {
     //-- Sort matches and preserve top 10% matches
     std::sort(matches.begin(), matches.end());
-    std::vector< DMatch > good_matches;
+    std::vector<DMatch> good_matches;
     double minDist = matches.front().distance;
     double maxDist = matches.back().distance;
 
@@ -156,7 +156,7 @@ int main(int argc, char* argv[])
         ocl::setUseOpenCL(false);
         std::cout << "OpenCL was disabled" << std::endl;
     }
-
+    
     UMat img1, img2;
 
     std::string outpath = cmd.get<std::string>("o");
