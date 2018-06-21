@@ -3,6 +3,7 @@
 
 TARGET1 = bin/sift_match
 TARGET2 = bin/surf_match
+TARGET3 = bin/surf_cam_match
 
 CXX = g++
 INC = `pkg-config --cflags opencv` #and other include paths -I
@@ -24,18 +25,21 @@ LINK = $(CXX) $(LFLAGS) $(LIB) $^ -o $@
 
 
 .PHONY: all
-all: $(TARGET1) $(TARGET2) #and other targets
+all: $(TARGET1) $(TARGET2) $(TARGET3) #and other targets
 
 $(TARGET1): build/sift_match.o
 	$(LINK)
 $(TARGET2): build/surf_match.o
+	$(LINK)
+$(TARGET3): build/surf_cam_match.o
 	$(LINK)
 
 build/sift_match.o: src/sift_match.cpp
 	$(COMPILE)
 build/surf_match.o: src/surf_match.cpp
 	$(COMPILE)
-
+build/surf_cam_match.o: src/surf_cam_match.cpp
+	$(COMPILE)
 
 clean:
 	rm -frv build/*
