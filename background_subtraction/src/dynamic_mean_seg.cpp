@@ -1,6 +1,6 @@
 #include "opencv2/opencv.hpp"
+#include <cstdlib>
 #include <iostream>
-#include <sstream>
 #include <queue>
 #include <vector>
 #include "platformcam.h"
@@ -8,36 +8,43 @@
 
 int main(int argc, char** argv)
 {
-  if(argc != 2)
+  if(argc < 2)
     {
       std::cerr << "Total frame number needed, to calculate mean!" << std::endl;
       return 0;
     }
   
-  std::istringstream iss(argv[1]);
-  int total_frame_num;
-  iss >> total_frame_num;
+  int total_frame_num = atoi(argv[1]);
   if(!total_frame_num)
     {
       std::cerr << "Invalid frame number" << std::endl;
       return 0;
     }
 
-  cam_t s_vid;
+  cv::VideoCapture s_vid;
   
-  //Set resolution to 480p
-  s_vid.set(CV_CAP_PROP_FRAME_WIDTH, 640);
-  s_vid.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
-
-  if(!OPEN_CAM(s_vid))
+  //No video name specified, open camera
+  if(argc < 3)
     {
-      std::cerr << "Unable to open camera" << std::endl;
-      return 0;
+      if(!s_vid.open(0))
+	{
+	  std::cout << "Cannot open camera" << std::endl;
+	  return 0;
+	}
     }
-
+  //Or open specified video
+  else
+    {
+      if(!s_vid.open(argv[2]))
+	{
+	  std::cout << "Cannot open " << argv[2] << std::endl;
+	  return 0;
+	}
+    }
+  
   //Initialize acculumated Mat.
   cv::Mat* temp_frame = new cv::Mat();
-  CAM_CAP_FRAME(s_vid, (*temp_frame));
+  s_vid >> *temp_frame;
   cv::Mat accu_mat(temp_frame->size(), CV_32FC1, cv::Scalar_<float>::all(0));
   delete temp_frame;
 
@@ -48,7 +55,8 @@ int main(int argc, char** argv)
   std::cout << "Filling vector with initial "  << total_frame_num << " frame..." <<std::endl;
   for(frame_it = frame_vec.begin(); frame_it != frame_vec.end(); ++frame_it)
     {
-      CAM_CAP_FRAME_GRAY(s_vid, *frame_it);
+      s_vid >> *frame_it;
+      cv::cvtColor(*frame_it, *frame_it, cv::COLOR_RGB2GRAY);
       cv::add(accu_mat, *frame_it, accu_mat, cv::noArray(), CV_32F);
     }
   std::cout << "Done!" << std::endl;
@@ -64,7 +72,8 @@ int main(int argc, char** argv)
       
       //Dynamic Mean
       cv::subtract(accu_mat, *frame_it, accu_mat, cv::noArray(), CV_32F);
-      CAM_CAP_FRAME_GRAY(s_vid, *frame_it);
+      s_vid >> *frame_it;
+      cv::cvtColor(*frame_it, *frame_it, cv::COLOR_RGB2GRAY);
       cv::add(accu_mat, *frame_it, accu_mat, cv::noArray(), CV_32F);
       cv::divide(accu_mat, divisor_mat, bg, 1, CV_8U);
 
