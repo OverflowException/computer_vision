@@ -35,7 +35,13 @@
 *.png
 *.jpg
 
+#videos
+*.avi
+
+*.log
+
 */bin/*
 */build/*
+*/data/*
 
 *~
