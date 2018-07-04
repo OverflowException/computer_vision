@@ -15,6 +15,7 @@
 #include <cstring>
 #include <ctime>
 #include <utility>
+#include <algorithm>
 #include "samples_utility.hpp"
 
 using namespace std;
@@ -26,7 +27,7 @@ void genCrosshair(const Rect_<_T>& rect,
 		  pair<Point_<_T>, Point_<_T>>& ch_h,
 		  pair<Point_<_T>, Point_<_T>>& ch_v)
 {
-  ch_center = Point2d(rect.x + rect.width / 2, rect.y + rect.height / 2);
+  ch_center = Point_<_T>((rect.tl() + rect.br()) / 2);
   
   ch_v.first = Point2d(ch_center.x, ch_center.y - 0.7 * rect.height);
   ch_v.second = Point2d(ch_center.x, ch_center.y + 0.7 * rect.height);
@@ -86,9 +87,11 @@ int main( int argc, char** argv )
   trackers.add(algorithms,frame,objects);
 
 
-  pair<Point2d, Point2d> crosshair_v;
-  pair<Point2d, Point2d> crosshair_h;
-  Point2d crosshair_center;
+  pair<Point2d, Point2d> crosshair_v; //Hertical crosshair line
+  pair<Point2d, Point2d> crosshair_h; //Horizontal crosshair line
+  Point2d crosshair_center;  //Position of crosshair center
+  vector<vector<Point>> obj_tracks(ROIs.size()); //Tracks of objects
+  Point pt_buf;
   
   // do the tracking
   cout << "Start the tracking process, press ESC to quit.\n" << endl;
@@ -100,7 +103,7 @@ int main( int argc, char** argv )
       cap >> frame;
 
       //stop the program if no more images
-      if(frame.rows==0 || frame.cols==0)
+      if(frame.empty())
 	break;
 
       //update the tracking result
@@ -115,7 +118,25 @@ int main( int argc, char** argv )
 	  line(frame, crosshair_v.first, crosshair_v.second, Scalar(0, 255, 0), 2, 1);
 	  line(frame, crosshair_h.first, crosshair_h.second, Scalar(0, 255, 0), 2, 1);
 	}
-          
+
+      //Add points to tracks
+      for(size_t obj_idx = 0; obj_idx < obj_tracks.size(); ++obj_idx)
+	{
+	  pt_buf = Point((objects[obj_idx].tl() + objects[obj_idx].br()) / 2);
+	  cout << "int : " << pt_buf << endl;
+	  
+	  //New track point
+	  if(find(obj_tracks[obj_idx].begin(), obj_tracks[obj_idx].end(), pt_buf)
+	     == obj_tracks[obj_idx].end())
+	    obj_tracks[obj_idx].push_back(pt_buf);
+	}
+
+      //Draw tracks
+      for(const auto& track : obj_tracks)
+      	for(const auto& point : track)
+      	  circle(frame, point, 1, Scalar(255, 255, 255));
+      
+      
       //show image with the tracked object
       imshow("tracker",frame);
 
