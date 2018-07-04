@@ -43,6 +43,12 @@
 
 */bin/*
 */build/*
+
+#data files
 */data/*
 
+#temporary files
 *~
+
+#python byte files
+*.pyc
