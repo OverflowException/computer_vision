@@ -38,7 +38,7 @@ def phshift(sig1, sig2):
     phshift = math.acos(dot_product / norm_product)
 
     #Return phase shift and normalized signals
-    return phshift
+    return phshift, sig1, sig2
     
     
 def dc(sig):
